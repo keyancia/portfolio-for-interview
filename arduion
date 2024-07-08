@@ -1,0 +1,106 @@
+ //硬件连接
+//ADXL345加速度传感器连接到I2C总线
+//力传感器连接到Arduino的模拟输入引脚A0
+//SSD1306 OLED显示屏连接到I2C总线
+
+
+//所需库
+//Wire.h 用于I2C通信
+//Adafruit_SSD1306.h 用于OLED显示屏
+//Adafruit_ADXL345_U.h 用于ADXL345加速度传感器
+
+
+#include <Wire.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_ADXL345_U.h>
+
+//初始化
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
+
+#define FORCE_SENSOR_PIN A0
+#define MAX_ADC_VALUE 1023
+#define MAX_FORCE 500.0
+
+//主控制逻辑
+
+void setup() {
+  Serial.begin(9600);
+
+  if(!accel.begin()) {
+    Serial.println("No ADXL345 detected");
+    while(1);
+  }
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("SSD1306 allocation failed");
+    while(1);
+  }
+  display.display();
+  delay(2000);
+  display.clearDisplay();
+}
+
+void loop() {
+  sensors_event_t event;
+  accel.getEvent(&event);
+
+  float speed = calculateSpeed(event);
+
+  int adcValue = analogRead(FORCE_SENSOR_PIN);
+  float force = convertAdcToForce(adcValue);
+
+  displayResults(speed, force);
+
+  delay(1000); 
+}
+
+
+//读取加速度传感器数据并计算速度
+
+struct AccelData {
+  float x;
+  float y;
+  float z;
+};
+
+bool readAccelSensor(uint8_t address, AccelData &data) {
+  sensors_event_t event;
+  accel.getEvent(&event);
+  data.x = event.acceleration.x;
+  data.y = event.acceleration.y;
+  data.z = event.acceleration.z;
+  return true;
+}
+
+float calculateSpeed(AccelData &data) {
+    // 假设速度与加速度成正比
+  return sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
+}
+
+//读取力传感器数据并计算力量
+
+float convertAdcToForce(uint16_t adcValue) {
+  return (adcValue / (float)MAX_ADC_VALUE) * MAX_FORCE;
+}
+
+//显示速度和力量数据
+
+void displayResults(float speed, float force) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.print("Speed: ");
+  display.print(speed);
+  display.println(" m/s");
+  display.print("Force: ");
+  display.print(force);
+  display.println(" N");
+  display.display();
+}
